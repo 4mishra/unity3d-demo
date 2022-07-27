@@ -1,0 +1,58 @@
+version: '2.1'
+orbs:
+  unity: game-ci/unity@0.2.0
+  ruby: circleci/ruby@1.2.0
+
+jobs:
+  generate_ios_project:
+    executor:
+      editor_version: 2019.4.19f1
+      name: unity/ubuntu
+      resource_class: medium
+      target_platform: ios
+    steps:
+      - checkout
+      - unity/prepare-env:
+          unity-username-var-name: UNITY_USERNAME
+          unity-password-var-name: UNITY_PASSWORD
+          unity-serial-var-name: UNITY_SERIAL
+      - unity/build:
+          build-target: iOS
+      - persist_to_workspace:
+          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
+          # taken to be the root directory of the workspace.
+          root: ./
+          # Must be relative path from root
+          paths:
+            - Builds/**/*
+      # - save_cache:
+      #     key: ios-build-workspace
+      #     paths:
+      #       - Builds/iOS
+  test_flight:
+    macos:
+      xcode: "13.4.1"
+    resource_class: medium
+    steps:
+      - checkout
+      - attach_workspace:
+        # Must be absolute path or relative path from working_directory
+          at: ./
+      # - restore_cache:
+      #     keys: ios-build-workspace
+      # - run:
+      #     name: move cached build
+      #     command: mv /root/project/Builds /Users/distiller/project/Builds
+      - run:
+          name: install fastlane
+          command: sudo gem install fastlane
+      - run:
+          name: run fastlane beta
+          command: fastlane beta
+
+workflows:
+  build_ios_and_upload_testflight:
+    jobs:
+      - generate_ios_project
+      - test_flight:
+          requires: [generate_ios_project]
